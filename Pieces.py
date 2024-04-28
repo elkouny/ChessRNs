@@ -219,6 +219,14 @@ class Board:
                     piece = piece_class(Color.Black, x)
                     self.update_board(piece, xy_pos)
 
+    def get_king(self, color: Color) -> XYPos:
+        """
+        Given Color, you return the kings position on the board
+        :param color:
+        :return: King position
+        """
+        return self.piece_to_coordinate[King(color, Index.e)]
+
     def update_board(self, piece: Piece, coordinate: XYPos):
         """
         Function to update the board according to the piece and coordinate
@@ -228,21 +236,54 @@ class Board:
         self.piece_to_coordinate[piece] = coordinate
         self.coordinate_to_piece[coordinate] = piece
 
-    def in_king_exposed(self, piece: Piece, potential_position: XYPos):
+    def is_king_exposed(self, piece: Piece, potential_position: XYPos):
         """
-        # TODO: This need to be implemented
         :param piece:
         :param potential_position:
         """
-        pass
+        original_piece_to_coordinate = self.piece_to_coordinate.copy()
+        original_coordinate_to_piece = self.coordinate_to_piece.copy()
+        self.update_board(piece, potential_position)
+        opponents: List[Piece] = []
+        for potential_piece in self.piece_to_coordinate.keys():
+            if potential_piece.color != piece.color and potential_piece.color != Color.Blank:
+                opponents.append(potential_piece)
 
-    def get_valid_moves(self, piece: Piece) -> Set[XYPos]:
+        king_position = self.get_king(piece.color)
+        for opponent in opponents:
+            if king_position in self.get_moves(opponent):
+                self.piece_to_coordinate = original_piece_to_coordinate
+                self.coordinate_to_piece = original_coordinate_to_piece
+                return True
+        self.piece_to_coordinate = original_piece_to_coordinate
+        self.coordinate_to_piece = original_coordinate_to_piece
+        return False
+
+    def check_moves_strong(self, current_position: XYPos, move_direction: XYPos, piece: Piece, moves: Set[XYPos]):
         """
-        returns all the potential valid moves in the form of a List
+        move the strong pieces in their k * vector
+        :param current_position: current position of strong piece
+        :param move_direction: direction which strong piece can move
+        :param piece: piece to move
+        :param moves: all the potential moves that can be done
+        """
+        for k in range(1, 9):
+            try:
+                potential_position = current_position + move_direction * k
+                if self.coordinate_to_piece[potential_position].color == Color.Blank:
+                    moves.add(potential_position)
+                elif self.coordinate_to_piece[potential_position].color != piece.color:
+                    moves.add(potential_position)
+                    break
+            except AssertionError:
+                break
+
+    def get_moves(self, piece: Piece) -> Set[XYPos]:
+        """
+        returns all the potential moves in the form of a List some of the moves could be invalid as they could expose the king
         :param piece:  to check
         """
-        valid_moves: Set[XYPos] = []
-        piece_name: str = piece.__name__
+        moves: Set[XYPos] = set()
         current_position = self.piece_to_coordinate[piece]
         if not piece.strong_piece():
             for move in piece.movements():
@@ -251,33 +292,25 @@ class Board:
                     # TODO: Distinguish between killing moves and normal moves
                     potential_position = current_position + move
                     if self.coordinate_to_piece[potential_position].color != piece.color:
-                        valid_moves.add(potential_position)
+                        moves.add(potential_position)
                 except AssertionError:
                     continue
         else:
             for move in piece.movements():
-                for k in range(1, 9):
-                    try:
-                        potential_position = current_position + move * k
+                self.check_moves_strong(current_position, move, piece, moves)
+                self.check_moves_strong(current_position, move * -1, piece, moves)
+        return moves
 
-                        if self.coordinate_to_piece[potential_position].color == Color.Blank:
-                            valid_moves.add(potential_position)
-                        elif self.coordinate_to_piece[potential_position].color != piece.color:
-                            valid_moves.add(potential_position)
-                            break
-                    except AssertionError:
-                        break
-                for k in range(-1, -9, -1):
-                    try:
-                        potential_position = current_position + move * k
-                        if self.coordinate_to_piece[potential_position].color == Color.Blank:
-                            valid_moves.add(potential_position)
-                        elif self.coordinate_to_piece[potential_position].color != piece.color:
-                            valid_moves.add(potential_position)
-                            break
-                    except AssertionError:
-                        break
-
+    def get_valid_moves(self, piece: Piece) -> Set[XYPos]:
+        """
+        returns all the potential valid moves in the form of a List
+        :param piece:  to check
+        """
+        moves: Set[XYPos] = self.get_moves(piece)
+        valid_moves = set()
+        for move in moves:
+            if not self.is_king_exposed(piece, move):
+                valid_moves.add(move)
         return valid_moves
 
     def move_piece(self, piece: Piece, final_coordinate: XYPos):
@@ -286,3 +319,8 @@ class Board:
         :param piece: Piece to move
         :param final_coordinate: Final coordinate to be moved to
         """
+        valid_moves = self.get_valid_moves(piece)
+        if final_coordinate in valid_moves:
+            self.update_board(piece, final_coordinate)
+        else:
+            raise ValueError("Illegal move")
