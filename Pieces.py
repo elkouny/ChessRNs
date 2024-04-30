@@ -32,11 +32,19 @@ class Index(Enum):
 
     def __sub__(self, other):
         if isinstance(other, Index):
+            assert 1 <= self.value - other.value <= 8
             return Index(self.value - other.value)
+        else:
+            assert 1 <= self.value - other <= 8
+            return Index(self.value - other)
 
     def __add__(self, other):
         if isinstance(other, Index):
+            assert 1 <= self.value + other.value <= 8
             return Index(self.value + other.value)
+        else:
+            assert 1 <= self.value + other <= 8
+            return Index(self.value + other)
 
 
 class XYPos:
@@ -87,6 +95,14 @@ class XYPos:
 
     def __str__(self):
         return f"XYPos object: x={self.X}, y={self.Y}"
+
+    def __hash__(self):
+        return hash((self.X.value, self.Y))
+
+    def __eq__(self, other):
+        return isinstance(other, XYPos) and \
+            self.X.value == other.X.value and \
+            self.Y == other.Y
 
     @staticmethod
     def mapper(pos):
@@ -139,6 +155,9 @@ class Piece:
     def __str__(self):
         return f"{type(self).__name__} object: Color={self.color.name}, Index={self.index.name}"
 
+    # def __is__(self, other):
+    #     return isinstance(type(self), other)
+
 
 class Pawn(Piece):
 
@@ -147,11 +166,18 @@ class Pawn(Piece):
         self.moved_twice = _moved_twice
 
     def movements(self) -> List[np.ndarray]:
-        if self.has_moved():
-            return list(map(np.array, [(0, 1), (1, 1), (-1, 1)]))
+        if self.color == Color.White:
+            if self.has_moved():
+                return list(map(np.array, [(0, 1), (1, 1), (-1, 1)]))
+            else:
+                # Move Pawn 2 steps forward initially
+                return list(map(np.array, [(0, 1), (1, 1), (-1, 1), (0, 2)]))
         else:
-            # Move Pawn 2 steps forward initially
-            return list(map(np.array, [(0, 1), (1, 1), (-1, 1), (0, 2)]))
+            if self.has_moved():
+                return list(map(np.array, [(0, -1), (-1, -1), (1, -1)]))
+            else:
+                # Move Pawn 2 steps forward initially
+                return list(map(np.array, [(0, -1), (-1, -1), (1, -1), (0, -2)]))
 
 
 class Knight(Piece):
@@ -235,6 +261,8 @@ class Board:
                 if y == 1:
                     piece_class = pieces_in_order[x.value - 1]
                     piece = piece_class(Color.White, x)
+                    if isinstance(piece, King):
+                        self.white_king = piece
                     self.update_board(piece, xy_pos)
                 elif y == 2:
                     self.update_board(Pawn(Color.White, x), xy_pos)
@@ -245,6 +273,8 @@ class Board:
                 else:
                     piece_class = pieces_in_order[x.value - 1]
                     piece = piece_class(Color.Black, x)
+                    if isinstance(piece, King):
+                        self.black_king = piece
                     self.update_board(piece, xy_pos)
 
     def get_king(self, color: Color) -> XYPos:
@@ -253,7 +283,10 @@ class Board:
         :param color:
         :return: King position
         """
-        return self.piece_to_coordinate[King(color, Index.e)]
+        if color == Color.Black:
+            return self.piece_to_coordinate[self.black_king]
+        else:
+            return self.piece_to_coordinate[self.white_king]
 
     def update_board(self, piece: Piece, coordinate: XYPos):
         """
@@ -269,8 +302,9 @@ class Board:
         :param piece:
         :param potential_position:
         """
-        original_piece_to_coordinate = self.piece_to_coordinate.copy()
-        original_coordinate_to_piece = self.coordinate_to_piece.copy()
+
+        original_coordinate = self.piece_to_coordinate[piece]
+        piece_at_potential_position = self.coordinate_to_piece[potential_position]
         self.update_board(piece, potential_position)
         opponents: List[Piece] = []
         for potential_piece in self.piece_to_coordinate.keys():
@@ -280,11 +314,12 @@ class Board:
         king_position = self.get_king(piece.color)
         for opponent in opponents:
             if king_position in self.get_moves(opponent):
-                self.piece_to_coordinate = original_piece_to_coordinate
-                self.coordinate_to_piece = original_coordinate_to_piece
+                self.update_board(piece_at_potential_position, potential_position)
+                self.update_board(piece, original_coordinate)
                 return True
-        self.piece_to_coordinate = original_piece_to_coordinate
-        self.coordinate_to_piece = original_coordinate_to_piece
+
+        self.update_board(piece_at_potential_position, potential_position)
+        self.update_board(piece, original_coordinate)
         return False
 
     def check_moves_strong(self, current_position: XYPos, move_direction: np.ndarray, piece: Piece, moves: Set[XYPos]):
@@ -303,7 +338,9 @@ class Board:
                 elif self.coordinate_to_piece[potential_position].color != piece.color:
                     moves.add(potential_position)
                     break
-            except ValueError:
+                else:
+                    break
+            except AssertionError:
                 break
 
     def get_moves(self, piece: Piece) -> Set[XYPos]:
@@ -318,12 +355,13 @@ class Board:
                 try:
                     # XYPos out of bound will cause an assertion error
                     # TODO: Distinguish between killing moves and normal moves
+
                     potential_position = current_position + move
                     piece_at_potential_position = self.coordinate_to_piece[potential_position]
-                    if piece is Pawn and move == XYPos(1, 1) or move == XYPos(-1, 1):
-                        # Pawn Killing: En-Passant or Normal setting move.Y to 0 to check for En-Passant
-                        en_passant = copy.copy(move)
-                        en_passant.Y = 0
+                    if isinstance(piece, Pawn) and piece.color == Color.White and ((move == np.array([1, 1])).all() or
+                                                                                   (move == np.array([-1, 1])).all()):
+                        # Pawn Killing: En-Passant or Normal
+                        en_passant = XYPos(potential_position.X, potential_position.Y - 1)
                         piece_at_en_passant = self.coordinate_to_piece[en_passant]
                         if piece_at_potential_position.color != piece.color and piece_at_potential_position.color != Color.Blank:
                             # Normal Case Pawn Killing
@@ -331,7 +369,19 @@ class Board:
                         elif piece_at_potential_position.color == Color.Blank and piece_at_en_passant is Pawn and piece_at_en_passant.moved_twice and piece_at_en_passant.color != piece.color:
                             # En-passant case
                             moves.add(potential_position)
-                    elif piece is King and move == XYPos(-2, 0) or move == XYPos(2, 0):
+                    elif isinstance(piece, Pawn) and piece.color == Color.Black and (
+                            (move == np.array([-1, -1])).all() or
+                            (move == np.array([1, -1])).all()):
+                        en_passant = XYPos(potential_position.X, potential_position.Y + 1)
+                        piece_at_en_passant = self.coordinate_to_piece[en_passant]
+                        if piece_at_potential_position.color != piece.color and piece_at_potential_position.color != Color.Blank:
+                            # Normal Case Pawn Killing
+                            moves.add(potential_position)
+                        elif piece_at_potential_position.color == Color.Blank and piece_at_en_passant is Pawn and piece_at_en_passant.moved_twice and piece_at_en_passant.color != piece.color:
+                            # En-passant case
+                            moves.add(potential_position)
+                    elif isinstance(piece, King) and (
+                            (move == np.array([-2, 0])).all() or (move == np.array([2, 0])).all()):
                         # Castling
                         if piece.color == Color.Black:
                             row = 8
@@ -342,19 +392,19 @@ class Board:
                             if self.coordinate_to_piece[XYPos(Index.d, row)].color == Color.Blank and \
                                     self.coordinate_to_piece[XYPos(Index.c, row)].color == Color.Blank and \
                                     self.coordinate_to_piece[XYPos(Index.b, row)].color == Color.Blank and \
-                                    self.coordinate_to_piece[XYPos(Index.a, row)] is Castle and not \
+                                    isinstance(self.coordinate_to_piece[XYPos(Index.a, row)], Castle) and not \
                                     self.coordinate_to_piece[XYPos(Index.a, row)].has_moved():
                                 moves.add(potential_position)
                         else:
                             # Close Castle
                             if self.coordinate_to_piece[XYPos(Index.f, row)].color == Color.Blank and \
                                     self.coordinate_to_piece[XYPos(Index.g, row)].color == Color.Blank and \
-                                    self.coordinate_to_piece[XYPos(Index.h, row)] is Castle and not \
+                                    isinstance(self.coordinate_to_piece[XYPos(Index.h, row)], Castle) and not \
                                     self.coordinate_to_piece[XYPos(Index.h, row)].has_moved():
                                 moves.add(potential_position)
                     elif self.coordinate_to_piece[potential_position].color != piece.color:
                         moves.add(potential_position)
-                except ValueError:
+                except AssertionError:
                     continue
         else:
             for move in piece.movements():
@@ -390,4 +440,5 @@ class Board:
 if __name__ == "__main__":
     board = Board()
     for c, p in board.coordinate_to_piece.items():
-        print(f' Piece is {p} coordinate is {c} all the valid moves are {board.get_valid_moves(p)}')
+        v_m = "{" + ", ".join(str(xy_pos) for xy_pos in board.get_valid_moves(p)) + "}"
+        print(f' Piece is {p} coordinate is {c} all the valid moves are {v_m}')
