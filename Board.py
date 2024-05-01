@@ -1,4 +1,4 @@
-from Piece_Class import *
+from Piece import *
 from typing import List, Dict, Type, Set, Union
 import numpy as np
 import chess

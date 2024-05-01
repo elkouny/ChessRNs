@@ -1,6 +1,6 @@
 import chess.svg
-from Piece_Class import *
-from Board_Class import *
+from Piece import *
+from Board import *
 
 if __name__ == "__main__":
     board = Board()
