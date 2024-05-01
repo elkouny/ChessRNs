@@ -1,10 +1,13 @@
 import copy
+import time
 
+import chess
 import numpy as np
 from enum import Enum
 from typing import List, Dict, Type, Set, Union
 from dataclasses import dataclass
 import chess.svg
+from IPython.display import SVG
 
 
 class Color(Enum):
@@ -157,6 +160,9 @@ class Piece:
 
     # def __is__(self, other):
     #     return isinstance(type(self), other)
+
+    def __hash__(self):
+        return hash((self.color.value, self.index.value, type(self).__name__))
 
 
 class Pawn(Piece):
@@ -431,7 +437,12 @@ class Board:
         :param final_coordinate: Final coordinate to be moved to
         """
         valid_moves = self.get_valid_moves(piece)
+        initial_position = self.piece_to_coordinate[piece]
+        displacement = np.array(final_coordinate) - np.array(initial_position)
         if final_coordinate in valid_moves:
+            piece.moved = True
+            if isinstance(piece, Pawn) and abs(displacement[0]) == 2:
+                piece.moved_twice = True
             self.update_board(piece, final_coordinate)
         else:
             raise ValueError("Illegal move")
@@ -439,6 +450,34 @@ class Board:
 
 if __name__ == "__main__":
     board = Board()
+    image = chess.Board()
+    board.update_board(Queen(Color.White, Index.e), XYPos(Index.e, 7))
     for c, p in board.coordinate_to_piece.items():
+        if isinstance(p, Pawn):
+            letter = "p"
+        elif isinstance(p, Castle):
+            letter = "r"
+        elif isinstance(p, Knight):
+            letter = 'n'
+        elif isinstance(p, Bishop):
+            letter = "b"
+        elif isinstance(p, Queen):
+            letter = "q"
+        elif isinstance(p, King):
+            letter = "k"
+        else:
+            continue
+        if p.color == Color.White:
+            letter = letter.upper()
+
+        image.set_piece_at(chess.square(c.X.value - 1, c.Y - 1), chess.Piece.from_symbol(letter))
+
         v_m = "{" + ", ".join(str(xy_pos) for xy_pos in board.get_valid_moves(p)) + "}"
-        print(f' Piece is {p} coordinate is {c} all the valid moves are {v_m}')
+        print(f' Piece is {p} coordinate is {c} all the valid moves are {v_m}  type : ')
+
+    s = set()
+    for xy_pos in board.get_valid_moves(Queen(Color.White, Index.d)):
+        s.add(chess.square(xy_pos.X.value - 1, xy_pos.Y - 1))
+    svg = chess.svg.board(board=image, squares=s)
+    with open("chess.svg", "w") as file:
+        file.write(svg)
