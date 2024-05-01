@@ -1,6 +1,7 @@
-from Piece_Class import Piece, Index, Color
+from Piece_Class import *
 from typing import List, Dict, Type, Set, Union
 import numpy as np
+import chess
 
 
 class XYPos:
@@ -57,8 +58,8 @@ class XYPos:
         return hash((self.X.value, self.Y))
 
     def __eq__(self, other):
-        return isinstance(other, XYPos) and \
-            self.X.value == other.X.value and \
+
+        return self.X.value == other.X.value and \
             self.Y == other.Y
 
     @staticmethod
@@ -274,11 +275,13 @@ class Board:
         """
         valid_moves = self.get_valid_moves(piece)
         initial_position = self.piece_to_coordinate[piece]
+        print(initial_position)
         displacement = np.array(final_coordinate) - np.array(initial_position)
         if final_coordinate in valid_moves:
             piece.moved = True
             if isinstance(piece, Pawn) and abs(displacement[0]) == 2:
                 piece.moved_twice = True
             self.update_board(piece, final_coordinate)
+            self.update_board(Piece(Color.Blank, Index.b), initial_position)
         else:
             raise ValueError("Illegal move")

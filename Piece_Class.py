@@ -83,7 +83,10 @@ class Piece:
     #     return isinstance(type(self), other)
 
     def __hash__(self):
-        return hash((self.color.value, self.index.value, type(self).__name__))
+        return hash((self.color.value, self.index.value, str(type(self).__name__)))
+
+    def __eq__(self, other):
+        return self.color == other.color and self.index == other.index and type(self).__name__ == type(other).__name__
 
 
 class Pawn(Piece):
