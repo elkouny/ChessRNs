@@ -161,7 +161,8 @@ class King(Piece):
 
     def movements(self) -> List[np.ndarray]:
         if self.has_moved():
-            return list(map(np.array, [(1, 1), (-1, 1), (0, 1), (1, 0)]))
+            return list(map(np.array, [(1, 1), (-1, 1), (0, 1), (1, 0), (-1, -1), (1, -1), (0, -1), (-1, 0)]))
         else:
             # Castling moves included
-            return list(map(np.array, [(1, 1), (-1, 1), (0, 1), (1, 0), (-2, 0), (2, 0)]))
+            return list(
+                map(np.array, [(1, 1), (-1, 1), (0, 1), (1, 0), (-1, -1), (1, -1), (0, -1), (-1, 0), (-2, 0), (2, 0)]))

@@ -146,7 +146,10 @@ class Board:
 
         original_coordinate = self.piece_to_coordinate[piece]
         piece_at_potential_position = self.coordinate_to_piece[potential_position]
+        del self.piece_to_coordinate[piece_at_potential_position]
         self.update_board(piece, potential_position)
+        self.update_board(Piece(Color.Blank, Index.b), original_coordinate)
+
         opponents: List[Piece] = []
         for potential_piece in self.piece_to_coordinate.keys():
             if potential_piece.color != piece.color and potential_piece.color != Color.Blank:
@@ -281,6 +284,9 @@ class Board:
             piece.moved = True
             if isinstance(piece, Pawn) and abs(displacement[0]) == 2:
                 piece.moved_twice = True
+            piece_at_final_position = self.coordinate_to_piece[final_coordinate]
+            if piece_at_final_position.color != Color.Blank:
+                del self.piece_to_coordinate[piece_at_final_position]
             self.update_board(piece, final_coordinate)
             self.update_board(Piece(Color.Blank, Index.b), initial_position)
         else:
