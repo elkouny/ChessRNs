@@ -104,19 +104,19 @@ class Board:
                     piece = piece_class(Color.White, x)
                     if isinstance(piece, King):
                         self.white_king = piece
-                    self.update_board(piece, xy_pos)
+                    self.add_piece_to_board(piece, xy_pos)
                 elif y == 2:
-                    self.update_board(Pawn(Color.White, x), xy_pos)
+                    self.add_piece_to_board(Pawn(Color.White, x), xy_pos)
                 elif 3 <= y <= 6:
-                    self.update_board(Piece(Color.Blank, x), xy_pos)
+                    self.add_piece_to_board(Piece(Color.Blank, x), xy_pos)
                 elif y == 7:
-                    self.update_board(Pawn(Color.Black, x), xy_pos)
+                    self.add_piece_to_board(Pawn(Color.Black, x), xy_pos)
                 else:
                     piece_class = pieces_in_order[x.value - 1]
                     piece = piece_class(Color.Black, x)
                     if isinstance(piece, King):
                         self.black_king = piece
-                    self.update_board(piece, xy_pos)
+                    self.add_piece_to_board(piece, xy_pos)
 
     def get_king(self, color: Color) -> XYPos:
         """
@@ -129,42 +129,44 @@ class Board:
         else:
             return self.piece_to_coordinate[self.white_king]
 
-    def update_board(self, piece: Piece, coordinate: XYPos):
+    def add_piece_to_board(self, piece: Piece, coordinate: XYPos):
         """
-        Function to update the board according to the piece and coordinate
-        :param piece: Piece to update
+        Function to add piece to the board according to the piece and coordinate
+        :param piece: Piece to add
         :param coordinate: Coordinate of the piece
         """
         self.piece_to_coordinate[piece] = coordinate
         self.coordinate_to_piece[coordinate] = piece
 
+    def update_piece(self, piece: Piece, new_position: XYPos):
+        """
+          This function is used to update position piece in board , and capture any piece that was there
+          :param piece: piece to be moved
+          :param new_position: the position that the piece will be moved to
+          """
+        original_position = self.piece_to_coordinate[piece]
+        piece_at_new_position = self.coordinate_to_piece[new_position]
+        if piece_at_new_position.color != Color.Blank:
+            del self.piece_to_coordinate[piece_at_new_position]
+        self.add_piece_to_board(piece, new_position)
+        self.add_piece_to_board(Piece(Color.Blank, Index.b), original_position)
+
     def is_king_exposed(self, piece: Piece, potential_position: XYPos):
         """
-        :param piece:
-        :param potential_position:
+        This function is used to see that if a piece move to a certain position, if the king is exposed. This is
+        important as it is an illegal move if the king is exposed hence the potential position is invalid.
+
+        :param piece: piece to be moved
+        :param potential_position: the position that the piece will be moved to
         """
 
-        original_coordinate = self.piece_to_coordinate[piece]
         piece_at_potential_position = self.coordinate_to_piece[potential_position]
-        del self.piece_to_coordinate[piece_at_potential_position]
-        self.update_board(piece, potential_position)
-        self.update_board(Piece(Color.Blank, Index.b), original_coordinate)
-
-        opponents: List[Piece] = []
-        for potential_piece in self.piece_to_coordinate.keys():
-            if potential_piece.color != piece.color and potential_piece.color != Color.Blank:
-                opponents.append(potential_piece)
-
-        king_position = self.get_king(piece.color)
-        for opponent in opponents:
-            if king_position in self.get_moves(opponent):
-                self.update_board(piece_at_potential_position, potential_position)
-                self.update_board(piece, original_coordinate)
-                return True
-
-        self.update_board(piece_at_potential_position, potential_position)
-        self.update_board(piece, original_coordinate)
-        return False
+        original_coordinate = self.piece_to_coordinate[piece]
+        self.update_piece(piece, potential_position)
+        king_in_check = self.is_check(piece.color)
+        self.update_piece(piece_at_potential_position, potential_position)
+        self.update_piece(piece, original_coordinate)
+        return king_in_check
 
     def check_moves_strong(self, current_position: XYPos, move_direction: np.ndarray, piece: Piece, moves: Set[XYPos]):
         """
@@ -189,8 +191,9 @@ class Board:
 
     def get_moves(self, piece: Piece) -> Set[XYPos]:
         """
-        returns all the potential moves in the form of a Set some of the moves could be invalid as they could expose the king
-        :param piece:  to check
+        returns all the potential moves in the form of a Set some of the moves could be invalid as they could expose
+        the king to check
+        :param piece:  piece to check all  potential positions it can move to
         """
         moves: Set[XYPos] = set()
         current_position = self.piece_to_coordinate[piece]
@@ -258,8 +261,8 @@ class Board:
 
     def get_valid_moves(self, piece: Piece) -> Set[XYPos]:
         """
-        returns all the potential valid moves in the form of a List
-        :param piece:  to check
+        returns all the potential valid moves in the form of a Set of XYPos
+        :param piece:  piece to check all the valid positions it can move to
         """
         moves: Set[XYPos] = self.get_moves(piece)
         valid_moves = set()
@@ -284,10 +287,39 @@ class Board:
             piece.moved = True
             if isinstance(piece, Pawn) and abs(displacement[0]) == 2:
                 piece.moved_twice = True
-            piece_at_final_position = self.coordinate_to_piece[final_coordinate]
-            if piece_at_final_position.color != Color.Blank:
-                del self.piece_to_coordinate[piece_at_final_position]
-            self.update_board(piece, final_coordinate)
-            self.update_board(Piece(Color.Blank, Index.b), initial_position)
+            self.update_piece(piece, final_coordinate)
         else:
             raise ValueError("Illegal move")
+
+    def is_check(self, color: Color):
+        """
+        return true if the color is in check
+        """
+        opponents: List[Piece] = []
+        for potential_piece in self.piece_to_coordinate.keys():
+            if potential_piece.color != color and potential_piece.color != Color.Blank:
+                opponents.append(potential_piece)
+
+        king_position = self.get_king(color)
+        for opponent in opponents:
+            if king_position in self.get_moves(opponent):
+                return True
+        return False
+
+    def is_check_mate(self, color: Color):
+        """
+        return true if the color is in checkmate
+        """
+        pass
+
+    def is_stale_mate(self, color: Color):
+        """
+        return true if the color is in stalemate
+        """
+        pass
+
+    def is_insufficient_material(self, color: Color):
+        """
+        return true if the color has insufficient material
+        """
+        pass

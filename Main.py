@@ -1,5 +1,4 @@
 import chess.svg
-from Piece import *
 from Board import *
 
 if __name__ == "__main__":
@@ -7,7 +6,7 @@ if __name__ == "__main__":
     image = chess.Board(None)
     board.move_piece(Knight(Color.White, Index.b), XYPos(Index.a, 3))
     q = Queen(Color.Black, Index.e)
-    board.update_board(q, XYPos(Index.e, 2))
+    board.add_piece_to_board(q, XYPos(Index.e, 2))
     for c, p in board.coordinate_to_piece.items():
 
         if isinstance(p, Pawn):
