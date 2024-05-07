@@ -1,4 +1,4 @@
-from Piece import *
+from Piece import Index, Piece, Castle, Knight, Bishop, Queen, King, Color, Pawn
 from typing import List, Dict, Type, Set, Union
 import numpy as np
 import chess

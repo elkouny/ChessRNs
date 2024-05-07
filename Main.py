@@ -1,5 +1,6 @@
 import chess.svg
-from Board import *
+from Board import Board, XYPos
+from Piece import Queen, Knight, Index, Color, Pawn, Castle, Bishop, King
 
 if __name__ == "__main__":
     board = Board()
